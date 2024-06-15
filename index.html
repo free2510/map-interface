@@ -2,17 +2,24 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Dynamic Map with Position and Style</title>
+    <title>Dynamic Map with Search Text, Style, and Center</title>
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet" />
     <style>
         body { margin: 0; padding: 0; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 75%; }
+        .search-container { position: absolute; top: 10px; left: 10px; z-index: 1; background: white; padding: 10px; }
+        .search-container input[type=text] { width: 300px; }
+        .search-container button { margin-left: 10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div class="search-container">
+        <input type="text" id="location-input" placeholder="Enter a location...">
+        <button onclick="searchLocation()">Search</button>
+    </div>
     <script>
         // Set your Mapbox access token
         mapboxgl.accessToken = 'pk.eyJ1IjoiZnJlZWZyZWU2MCIsImEiOiJjbHdyZ2hlamwwMGczMmlzYXJiem9oaHFxIn0.bp_4Do2mZmVjZwkDxlWmfw';
@@ -22,6 +29,7 @@
         const mapstyle = urlParams.get('mapstyle');
         const lat = parseFloat(urlParams.get('lat'));
         const lng = parseFloat(urlParams.get('lng'));
+        const searchText = urlParams.get('search');
 
         // Determine the map style based on the 'mapstyle' parameter
         const mapStyleUrl = mapstyle === 'satellite' ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v11';
@@ -42,6 +50,47 @@
             new mapboxgl.Marker()
                 .setLngLat([lng, lat])
                 .addTo(map);
+        }
+
+        // Function to search for a location using Mapbox Geocoding API
+        function searchLocation() {
+            var location = document.getElementById('location-input').value.trim();
+
+            if (location === '') {
+                return;
+            }
+
+            // Update URL with search parameter
+            var newUrl = updateQueryStringParameter(window.location.href, 'search', location);
+            history.pushState({}, '', newUrl);
+
+            fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(location)}.json?access_token=${mapboxgl.accessToken}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.features.length > 0) {
+                        var center = data.features[0].center;
+                        map.setCenter(center);
+                        map.setZoom(12); // Adjust the zoom level as needed
+                    } else {
+                        alert('Location not found.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching location:', error);
+                    alert('Error searching location. Please try again.');
+                });
+        }
+
+        // Helper function to update URL parameters
+        function updateQueryStringParameter(uri, key, value) {
+            var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+            var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+            if (uri.match(re)) {
+                return uri.replace(re, '$1' + key + "=" + encodeURIComponent(value) + '$2');
+            }
+            else {
+                return uri + separator + key + "=" + encodeURIComponent(value);
+            }
         }
     </script>
 </body>
