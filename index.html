@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Dynamic Data Map</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
+        .marker-title {
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        // Set your Mapbox access token
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZnJlZWZyZWU2MCIsImEiOiJjbHdyZ2hlamwwMGczMmlzYXJiem9oaHFxIn0.bp_4Do2mZmVjZwkDxlWmfw';
+
+        // Function to initialize the map with data
+        function initializeMap(data, mapStyle) {
+            if (!data || Object.keys(data).length === 0) {
+                console.error('No data available to display on the map.');
+                return;
+            }
+
+            var bounds = new mapboxgl.LngLatBounds();
+
+            // Initialize the map with the specified style
+            var map = new mapboxgl.Map({
+                container: 'map',
+                style: mapStyle, // Use the map style passed as a parameter
+                center: [31.265541752111393, 27.272295445302337], // Default center
+                zoom: 10
+            });
+
+            // Add markers to the map
+            Object.keys(data).forEach(function(category) {
+                if (Array.isArray(data[category])) {
+                    data[category].forEach(function(item) {
+                        addMarker(item);
+                    });
+                } else if (typeof data[category] === 'object' && data[category] !== null) {
+                    addMarker(data[category]);
+                }
+            });
+
+            // Adjust map bounds to fit all markers
+            map.fitBounds(bounds, { padding: 20 });
+
+            // Function to add markers to the map
+            function addMarker(item) {
+                if (item.occupied !== undefined && item.occupied === 1) {
+                    return; // Skip occupied parking spots
+                }
+
+                if (!item.latitude || !item.longitude) {
+                    console.error('Invalid data - latitude or longitude missing.');
+                    return;
+                }
+
+                var marker = new mapboxgl.Marker()
+                    .setLngLat([item.longitude, item.latitude])
+                    .addTo(map);
+
+                var popup = new mapboxgl.Popup({ offset: 25 })
+                    .setHTML('<div class="marker-title">' + (item.name || '') + '</div>');
+
+                marker.setPopup(popup);
+
+                bounds.extend([item.longitude, item.latitude]);
+            }
+        }
+
+        // Function to fetch data from the specified URL
+        function fetchData(url, category, mapStyle) {
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (category) {
+                        if (data[category]) {
+                            initializeMap({ [category]: data[category] }, mapStyle);
+                        } else {
+                            console.error('Category not found in data.');
+                        }
+                    } else {
+                        initializeMap(data, mapStyle);
+                    }
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Retrieve URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const firebaseurl = urlParams.get('firebaseurl');
+        const category = urlParams.get('category');
+        const mapstyle = urlParams.get('mapstyle');
+
+        // Determine the map style based on the 'mapstyle' parameter
+        const mapStyleUrl = mapstyle === 'satellite' ? 'mapbox://styles/mapbox/satellite-v9' : 'mapbox://styles/mapbox/streets-v11';
+
+        // Fetch data if URL is provided
+        if (firebaseurl) {
+            fetchData(firebaseurl, category, mapStyleUrl);
+        } else {
+            console.error('Firebase URL is required as a parameter.');
+        }
+    </script>
+</body>
+</html>
